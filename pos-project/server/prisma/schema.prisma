@@ -1,0 +1,232 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  MANAGER
+  CASHIER
+  STOCK_MANAGER
+}
+
+enum OrderStatus {
+  COMPLETED
+  PENDING
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CASH
+  MPESA
+  CARD
+  BANK
+  OTHER
+}
+
+model Business {
+  id        String   @id @default(uuid())
+  name      String
+  address   String?
+  phone     String?
+  email     String?
+  logoUrl   String?
+  kraPin    String?
+  vatNumber String?
+  currency  String   @default("KES")
+  taxRate   Decimal  @default(16)
+  timezone  String   @default("Africa/Nairobi")
+  branches  Branch[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Branch {
+  id          String    @id @default(uuid())
+  business    Business  @relation(fields: [businessId], references: [id])
+  businessId  String
+  name        String
+  location    String
+  phone       String?
+  managerId   String?
+  users       User[]
+  products    Product[]
+  orders      Order[]
+  createdAt   DateTime  @default(now())
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  phone        String?
+  passwordHash String
+  role         Role     @default(CASHIER)
+  branch       Branch?  @relation(fields: [branchId], references: [id])
+  branchId     String?
+  status       String   @default("Active")
+  orders       Order[]
+  auditLogs    AuditLog[]
+  createdAt    DateTime @default(now())
+}
+
+model Category {
+  id       String    @id @default(uuid())
+  name     String    @unique
+  products Product[]
+}
+
+model Supplier {
+  id              String    @id @default(uuid())
+  name            String
+  contactPerson   String?
+  phone           String?
+  email           String?
+  address         String?
+  totalPurchases  Decimal   @default(0)
+  balance         Decimal   @default(0)
+  products        Product[]
+  createdAt       DateTime  @default(now())
+}
+
+model Product {
+  id             String              @id @default(uuid())
+  name           String
+  sku            String              @unique
+  barcode        String?
+  category       Category?           @relation(fields: [categoryId], references: [id])
+  categoryId     String?
+  supplier       Supplier?           @relation(fields: [supplierId], references: [id])
+  supplierId     String?
+  branch         Branch?             @relation(fields: [branchId], references: [id])
+  branchId       String?
+  costPrice      Decimal
+  sellingPrice   Decimal
+  discountPrice  Decimal?
+  taxRate        Decimal             @default(16)
+  stock          Int                 @default(0)
+  minStock       Int                 @default(0)
+  unit           String              @default("pcs")
+  imageUrl       String?
+  description    String?
+  status         String              @default("Active")
+  orderItems     OrderItem[]
+  movements      InventoryMovement[]
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+}
+
+model Customer {
+  id                 String   @id @default(uuid())
+  name               String
+  phone              String?
+  email              String?
+  address            String?
+  type               String   @default("Regular")
+  outstandingBalance Decimal  @default(0)
+  orders             Order[]
+  createdAt          DateTime @default(now())
+}
+
+model Order {
+  id             String        @id @default(uuid())
+  orderNumber    String        @unique
+  receiptNumber  String        @unique
+  business       Business?     @relation(fields: [businessId], references: [id])
+  businessId     String?
+  branch         Branch        @relation(fields: [branchId], references: [id])
+  branchId       String
+  customer       Customer?     @relation(fields: [customerId], references: [id])
+  customerId     String?
+  cashier        User          @relation(fields: [cashierId], references: [id])
+  cashierId      String
+  items          OrderItem[]
+  payments       Payment[]
+  subtotal       Decimal
+  discount       Decimal       @default(0)
+  tax            Decimal       @default(0)
+  total          Decimal
+  status         OrderStatus   @default(COMPLETED)
+  refund         Refund?
+  createdAt      DateTime      @default(now())
+}
+
+model OrderItem {
+  id         String  @id @default(uuid())
+  order      Order   @relation(fields: [orderId], references: [id])
+  orderId    String
+  product    Product @relation(fields: [productId], references: [id])
+  productId  String
+  qty        Int
+  unitPrice  Decimal
+  discount   Decimal @default(0)
+  tax        Decimal @default(0)
+  total      Decimal
+}
+
+model Payment {
+  id            String        @id @default(uuid())
+  order         Order         @relation(fields: [orderId], references: [id])
+  orderId       String
+  method        PaymentMethod
+  amount        Decimal
+  reference     String?
+  phoneNumber   String?
+  createdAt     DateTime      @default(now())
+}
+
+model Refund {
+  id            String   @id @default(uuid())
+  order         Order    @relation(fields: [orderId], references: [id])
+  orderId       String   @unique
+  refundId      String   @unique
+  reason        String
+  amount        Decimal
+  createdAt     DateTime @default(now())
+}
+
+model InventoryMovement {
+  id         String   @id @default(uuid())
+  product    Product  @relation(fields: [productId], references: [id])
+  productId  String
+  type       String   // Sale | Purchase | Return | Adjustment | Transfer
+  quantity   Int
+  reason     String?
+  userId     String?
+  createdAt  DateTime @default(now())
+}
+
+model Expense {
+  id          String   @id @default(uuid())
+  title       String
+  category    String
+  amount      Decimal
+  paymentMethod String
+  description String?
+  addedBy     String?
+  createdAt   DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  action    String
+  details   String?
+  createdAt DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  type      String
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
